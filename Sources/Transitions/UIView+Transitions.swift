@@ -7,7 +7,9 @@ extension CALayer {
         insertSublayer(layer.contentLayer, at: idx)
         switch transition {
         case .none:
+              UIView.setAnimationsEnabled(false)
             completion?()
+              UIView.setAnimationsEnabled(true)
             break
         case .crossDissolve(let duration):
 			layer.contentLayer.setOpacity(from: 0, to: 1, duration: duration, completion: completion)

@@ -12,7 +12,7 @@ public extension UIView {
         let config = SkeletonConfig(type: .solid, colors: [color], transition: transition)
         showSkeleton(skeletonConfig: config)
     }
-    
+
     /// Shows the gradient skeleton without animation using the view that calls this method as root view.
     ///
     /// - Parameters:
@@ -22,7 +22,7 @@ public extension UIView {
         let config = SkeletonConfig(type: .gradient, colors: gradient.colors, transition: transition)
         showSkeleton(skeletonConfig: config)
     }
-    
+
     /// Shows the animated skeleton using the view that calls this method as root view.
     ///
     /// If animation is nil, sliding animation will be used, with direction left to right.
@@ -35,7 +35,7 @@ public extension UIView {
         let config = SkeletonConfig(type: .solid, colors: [color], animated: true, animation: animation, transition: transition)
         showSkeleton(skeletonConfig: config)
     }
-    
+
     /// Shows the gradient skeleton without animation using the view that calls this method as root view.
     ///
     /// If animation is nil, sliding animation will be used, with direction left to right.
@@ -73,12 +73,12 @@ public extension UIView {
         flowDelegate?.willBeginLayingSkeletonsIfNeeded(rootView: self)
         recursiveLayoutSkeletonIfNeeded(root: self)
     }
-    
+
     func hideSkeleton(reloadDataAfter reload: Bool = true, transition: SkeletonTransitionStyle = .crossDissolve(0.25)) {
         flowDelegate?.willBeginHidingSkeletons(rootView: self)
         recursiveHideSkeleton(reloadDataAfter: reload, transition: transition, root: self)
     }
-    
+
     func startSkeletonAnimation(_ anim: SkeletonLayerAnimation? = nil) {
         subviewsSkeletonables.recursiveSearch(leafBlock: startSkeletonLayerAnimationBlock(anim)) { subview in
             subview.startSkeletonAnimation(anim)
@@ -105,7 +105,7 @@ extension UIView {
         guard isSkeletonable, isSkeletonActive, let config = currentSkeletonConfig else { return }
         updateSkeleton(skeletonConfig: config)
     }
-    
+
     func showSkeleton(skeletonConfig config: SkeletonConfig) {
         isSkeletonAnimated = config.animated
         flowDelegate = SkeletonFlowHandler()
@@ -114,14 +114,14 @@ extension UIView {
     }
 
     private func recursiveShowSkeleton(skeletonConfig config: SkeletonConfig, root: UIView? = nil) {
-        guard isSkeletonable && !isSkeletonActive else { return }
+        guard isSkeletonable, !isSkeletonActive else { return }
         currentSkeletonConfig = config
         swizzleLayoutSubviews()
         swizzleTraitCollectionDidChange()
         addDummyDataSourceIfNeeded()
         subviewsSkeletonables.recursiveSearch(leafBlock: {
             showSkeletonIfNotActive(skeletonConfig: config)
-        }){ subview in
+        }) { subview in
             subview.recursiveShowSkeleton(skeletonConfig: config)
         }
 
@@ -191,12 +191,12 @@ extension UIView {
         }) { subview in
             subview.recursiveHideSkeleton(reloadDataAfter: reload, transition: transition)
         }
-        
+
         if let root = root {
             flowDelegate?.didHideSkeletons(rootView: root)
         }
     }
-    
+
     private func startSkeletonLayerAnimationBlock(_ anim: SkeletonLayerAnimation? = nil) -> VoidBlock {
         return {
             self.isSkeletonAnimated = true
@@ -206,7 +206,7 @@ extension UIView {
             }
         }
     }
-    
+
     private var stopSkeletonLayerAnimationBlock: VoidBlock {
         return {
             self.isSkeletonAnimated = false
@@ -214,9 +214,17 @@ extension UIView {
             layer.stopAnimation()
         }
     }
-    
+
     private func swizzleLayoutSubviews() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
+        if Thread.isMainThread {
+            DispatchQueue.once(token: "UIView.SkeletonView.swizzleLayoutSubviews") {
+                swizzle(selector: #selector(UIView.layoutSubviews),
+                        with: #selector(UIView.skeletonLayoutSubviews),
+                        inClass: UIView.self,
+                        usingClass: UIView.self)
+                self.layoutSkeletonIfNeeded()
+            }
+        } else {
             DispatchQueue.once(token: "UIView.SkeletonView.swizzleLayoutSubviews") {
                 swizzle(selector: #selector(UIView.layoutSubviews),
                         with: #selector(UIView.skeletonLayoutSubviews),
@@ -246,19 +254,19 @@ extension UIView {
             .addColors(config.colors)
             .setHolder(self)
             .build()
-            else { return }
+        else { return }
 
         self.skeletonLayer = skeletonLayer
         layer.insertSublayer(skeletonLayer,
                              at: UInt32.max,
                              transition: config.transition) { [weak self] in
-                                if config.animated {
-                                    self?.startSkeletonAnimation(config.animation)
-                                }
+            if config.animated {
+                self?.startSkeletonAnimation(config.animation)
+            }
         }
         status = .on
     }
-    
+
     func updateSkeletonLayer(skeletonConfig config: SkeletonConfig) {
         guard let skeletonLayer = skeletonLayer else { return }
         skeletonLayer.update(usingColors: config.colors)
@@ -273,7 +281,7 @@ extension UIView {
         guard let skeletonLayer = skeletonLayer else { return }
         skeletonLayer.layoutIfNeeded()
     }
-    
+
     func removeSkeletonLayer() {
         guard isSkeletonActive,
             let skeletonLayer = skeletonLayer,
